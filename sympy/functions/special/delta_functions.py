@@ -191,12 +191,12 @@ class DiracDelta(Function):
         arg = sympify(arg)
         if arg is S.NaN:
             return S.NaN
-        if arg.is_positive or arg.is_negative:
+        if arg.is_nonzero:
             return S.Zero
         if fuzzy_not(im(arg).is_zero):
             raise ValueError("Function defined only for Real Values. Complex part: %s  found in %s ." % (repr(im(arg)), repr(arg)) )
 
-    @deprecated(useinstead="expand(diracdelta=True, wrt=x)", deprecated_since_version="1.0.1")
+    @deprecated(useinstead="expand(diracdelta=True, wrt=x)", issue=12859, deprecated_since_version="1.1")
     def simplify(self, x):
         return self.expand(diracdelta=True, wrt=x)
 

@@ -24,6 +24,7 @@ if [[ "${TEST_SAGE}" == "true" ]]; then
     echo "Testing SAGE"
     sage -v
     sage -python bin/test sympy/external/tests/test_sage.py
+    ./bin/test -k tensorflow
 fi
 
 # We change directories to make sure that we test the installed version of
@@ -45,7 +46,9 @@ EOF
 fi
 
 if [[ "${TEST_DOCTESTS}" == "true" ]]; then
-    cat << EOF | python
+    # -We:invalid makes invalid escape sequences error in Python 3.6. See
+    # -#12028.
+    cat << EOF | python -We:invalid
 print('Testing DOCTESTS')
 import sympy
 if not sympy.doctest():
@@ -59,7 +62,7 @@ if [[ "${TEST_SLOW}" == "true" ]]; then
     cat << EOF | python
 print('Testing SLOW')
 import sympy
-if not sympy.test(split='${SPLIT}', slow=True):
+if not sympy.test(split='${SPLIT}', slow=True, verbose=True):
     # Travis times out if no activity is seen for 10 minutes. It also times
     # out if the whole tests run for more than 50 minutes.
     raise Exception('Tests failed')
@@ -111,10 +114,25 @@ EOF
 fi
 
 if [[ "${TEST_SYMPY}" == "true" ]]; then
-    cat << EOF | python
+    # -We:invalid makes invalid escape sequences error in Python 3.6. See
+    # -#12028.
+    cat << EOF | python -We:invalid
 print('Testing SYMPY, split ${SPLIT}')
 import sympy
 if not sympy.test(split='${SPLIT}'):
    raise Exception('Tests failed')
 EOF
+fi
+
+
+if [[ "${TEST_SYMENGINE}" == "true" ]]; then
+    echo "Testing SYMENGINE"
+    export USE_SYMENGINE=1
+    cat << EOF | python
+print('Testing SymEngine')
+import sympy
+if not sympy.test('sympy/physics/mechanics'):
+    raise Exception('Tests failed')
+EOF
+    unset USE_SYMENGINE
 fi
