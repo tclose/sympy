@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from sympy import S
 from sympy.combinatorics.fp_groups import (FpGroup, low_index_subgroups,
-                                           reidemeister_presentation)
+                                   reidemeister_presentation, FpSubgroup)
 from sympy.combinatorics.free_groups import free_group
 
 """
@@ -158,3 +158,50 @@ def test_order():
     F, a, b, c = free_group("a, b, c")
     f = FpGroup(F, [a**250, b**2, c*b*c**-1*b, c**4, c**-1*a**-1*c*a, a**-1*b**-1*a*b])
     assert f.order() == 2000
+
+    F, x = free_group("x")
+    f = FpGroup(F, [])
+    assert f.order() == S.Infinity
+
+    f = FpGroup(free_group('')[0], [])
+    assert f.order() == 1
+
+def test_fp_subgroup():
+    F, x, y = free_group("x, y")
+    f = FpGroup(F, [x**4, y**2, x*y*x**-1*y])
+    S = FpSubgroup(f, [x*y])
+    assert (x*y)**-3 in S
+
+    S = FpSubgroup(F, [x**-1*y*x])
+    assert x**-1*y**4*x in S
+    assert x**-1*y**4*x**2 not in S
+
+def test_permutation_methods():
+    from sympy.combinatorics.fp_groups import FpSubgroup
+    F, x, y = free_group("x, y")
+    # DihedralGroup(8)
+    G = FpGroup(F, [x**2, y**8, x*y*x**-1*y])
+    T = G._to_perm_group()[1]
+    assert T.is_isomorphism()
+    assert G.center() == [G.identity, y**4]
+
+    # DiheadralGroup(4)
+    G = FpGroup(F, [x**2, y**4, x*y*x**-1*y])
+    S = FpSubgroup(G, G.normal_closure([x]))
+    assert x in S
+    assert y**-1*x*y in S
+
+    # Z_5xZ_4
+    G = FpGroup(F, [x*y*x**-1*y**-1, y**5, x**4])
+    assert G.is_abelian
+    assert G.is_solvable
+
+    # AlternatingGroup(5)
+    G = FpGroup(F, [x**3, y**2, (x*y)**5])
+    assert not G.is_solvable
+
+    # AlternatingGroup(4)
+    G = FpGroup(F, [x**3, y**2, (x*y)**3])
+    assert len(G.derived_series()) == 3
+    S = FpSubgroup(G, G.derived_subgroup())
+    assert S.order() == 4

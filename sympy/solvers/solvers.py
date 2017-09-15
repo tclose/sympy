@@ -24,7 +24,7 @@ from sympy.core.function import (expand_mul, expand_multinomial, expand_log,
                           Function, expand_power_exp, Lambda, _mexpand)
 from sympy.integrals.integrals import Integral
 from sympy.core.numbers import ilcm, Float
-from sympy.core.relational import Relational, Ge
+from sympy.core.relational import Relational, Ge, _canonical
 from sympy.core.logic import fuzzy_not
 from sympy.logic.boolalg import And, Or, BooleanAtom
 from sympy.core.basic import preorder_traversal
@@ -834,6 +834,34 @@ def solve(f, *symbols, **flags):
 
     implicit = flags.get('implicit', False)
 
+    # preprocess symbol(s)
+    ###########################################################################
+    if not symbols:
+        # get symbols from equations
+        symbols = set().union(*[fi.free_symbols for fi in f])
+        if len(symbols) < len(f):
+            for fi in f:
+                pot = preorder_traversal(fi)
+                for p in pot:
+                    if isinstance(p, AppliedUndef):
+                        flags['dict'] = True  # better show symbols
+                        symbols.add(p)
+                        pot.skip()  # don't go any deeper
+        symbols = list(symbols)
+
+        ordered_symbols = False
+    elif len(symbols) == 1 and iterable(symbols[0]):
+        symbols = symbols[0]
+
+    # remove symbols the user is not interested in
+    exclude = flags.pop('exclude', set())
+    if exclude:
+        if isinstance(exclude, Expr):
+            exclude = [exclude]
+        exclude = set().union(*[e.free_symbols for e in sympify(exclude)])
+    symbols = [s for s in symbols if s not in exclude]
+
+
     # preprocess equation(s)
     ###########################################################################
     for i, fi in enumerate(f):
@@ -868,33 +896,6 @@ def solve(f, *symbols, **flags):
                 if bare_f:
                     bare_f = False
                 f[i: i + 1] = [fr, fi]
-
-    # preprocess symbol(s)
-    ###########################################################################
-    if not symbols:
-        # get symbols from equations
-        symbols = set().union(*[fi.free_symbols for fi in f])
-        if len(symbols) < len(f):
-            for fi in f:
-                pot = preorder_traversal(fi)
-                for p in pot:
-                    if isinstance(p, AppliedUndef):
-                        flags['dict'] = True  # better show symbols
-                        symbols.add(p)
-                        pot.skip()  # don't go any deeper
-        symbols = list(symbols)
-
-        ordered_symbols = False
-    elif len(symbols) == 1 and iterable(symbols[0]):
-        symbols = symbols[0]
-
-    # remove symbols the user is not interested in
-    exclude = flags.pop('exclude', set())
-    if exclude:
-        if isinstance(exclude, Expr):
-            exclude = [exclude]
-        exclude = set().union(*[e.free_symbols for e in sympify(exclude)])
-    symbols = [s for s in symbols if s not in exclude]
 
     # real/imag handling -----------------------------
     w = Dummy('w')
@@ -1362,38 +1363,28 @@ def _solve(f, *symbols, **flags):
 
     elif f.is_Piecewise:
         result = set()
-        for n, (expr, cond) in enumerate(f.args):
-            candidates = _solve(piecewise_fold(expr), symbol, **flags)
+        for i, (expr, cond) in enumerate(f.args):
+            candidates = _solve(expr, symbol, **flags) if expr else [symbol]
+            # the explicit condition for this expr is the current cond
+            # and none of the previous conditions
+            args = [~c for _, c in f.args[:i]] + [cond]
+            cond = And(*args)
             for candidate in candidates:
                 if candidate in result:
+                    # an unconditional value was already there
                     continue
                 try:
-                    v = (cond == True) or cond.subs(symbol, candidate)
-                except:
-                    v = False
-                if v != False:
-                    # Only include solutions that do not match the condition
-                    # of any previous pieces.
-                    matches_other_piece = False
-                    for other_n, (other_expr, other_cond) in enumerate(f.args):
-                        if other_n == n:
-                            break
-                        if other_cond == False:
-                            continue
-                        try:
-                            if other_cond.subs(symbol, candidate) == True:
-                                matches_other_piece = True
-                                break
-                        except:
-                            pass
-                    if not matches_other_piece:
-                        v = v == True or v.doit()
-                        if isinstance(v, Relational):
-                            v = v.canonical
-                        result.add(Piecewise(
-                            (candidate, v),
-                            (S.NaN, True)
-                        ))
+                    v = _canonical(cond.subs(symbol, candidate))
+                except TypeError:
+                    # incompatible type with condition(s)
+                    continue
+                if v == False:
+                    continue
+                result.add(Piecewise(
+                    (candidate, v),
+                    (S.NaN, True)))
+        # the solutions need not be checked again since they
+        # were checked in finding the solutions for each piece
         check = False
     else:
         # first see if it really depends on symbol and whether there

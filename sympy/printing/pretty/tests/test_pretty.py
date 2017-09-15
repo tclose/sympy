@@ -34,6 +34,8 @@ from sympy.core.trace import Tr
 from sympy.core.compatibility import u_decode as u
 from sympy.core.compatibility import range
 
+from sympy.vector import CoordSys3D, Gradient, Curl, Divergence, Dot, Cross
+
 a, b, x, y, z, k, n = symbols('a,b,x,y,z,k,n')
 th = Symbol('theta')
 ph = Symbol('phi')
@@ -1813,6 +1815,36 @@ E         \n\
          1\n\
      1 + ─\n\
          n\
+""")
+    assert pretty(expr) == ascii_str
+    assert upretty(expr) == ucode_str
+
+    expr = euler(n, x)
+    ascii_str = \
+"""\
+E (x)\n\
+ n   \
+"""
+    ucode_str = \
+u("""\
+E (x)\n\
+ n   \
+""")
+    assert pretty(expr) == ascii_str
+    assert upretty(expr) == ucode_str
+
+    expr = euler(n, x/2)
+    ascii_str = \
+"""\
+  /x\\\n\
+E |-|\n\
+ n\\2/\
+"""
+    ucode_str = \
+u("""\
+  ⎛x⎞\n\
+E ⎜─⎟\n\
+ n⎝2⎠\
 """)
     assert pretty(expr) == ascii_str
     assert upretty(expr) == ucode_str
@@ -5850,3 +5882,19 @@ def test_MatrixElement_printing():
     F = C[0, 0].subs(C, A - B)
     assert pretty(F)  == ascii_str1
     assert upretty(F) == ucode_str1
+
+
+def test_vector_expr_pretty_printing():
+    A = CoordSys3D('A')
+
+    assert upretty(Cross(A.i, A.x*A.i+3*A.y*A.j)) == u("(A_i)×((A_x) A_i + (3⋅A_y) A_j)")
+    assert upretty(x*Cross(A.i, A.j)) == u('x⋅(A_i)×(A_j)')
+
+    assert upretty(Curl(A.x*A.i + 3*A.y*A.j)) == u("∇×((A_x) A_i + (3⋅A_y) A_j)")
+
+    assert upretty(Divergence(A.x*A.i + 3*A.y*A.j)) == u("∇⋅((A_x) A_i + (3⋅A_y) A_j)")
+
+    assert upretty(Dot(A.i, A.x*A.i+3*A.y*A.j)) == u("(A_i)⋅((A_x) A_i + (3⋅A_y) A_j)")
+
+    assert upretty(Gradient(A.x+3*A.y)) == u("∇⋅(A_x + 3⋅A_y)")
+    # TODO: add support for ASCII pretty.

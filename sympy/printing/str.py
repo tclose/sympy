@@ -20,6 +20,7 @@ class StrPrinter(Printer):
     _default_settings = {
         "order": None,
         "full_prec": "auto",
+        "sympy_integers": False,
     }
 
     _relationals = dict()
@@ -496,10 +497,11 @@ class StrPrinter(Printer):
             if -expr.exp is S.Half and not rational:
                 # Note: Don't test "expr.exp == -S.Half" here, because that will
                 # match -0.5, which we don't want.
-                return "1/sqrt(%s)" % self._print(expr.base)
+                return "%s/sqrt(%s)" % tuple(map(self._print, (S.One, expr.base)))
             if expr.exp is -S.One:
                 # Similarly to the S.Half case, don't test with "==" here.
-                return '1/%s' % self.parenthesize(expr.base, PREC, strict=False)
+                return '%s/%s' % (self._print(S.One),
+                                  self.parenthesize(expr.base, PREC, strict=False))
 
         e = self.parenthesize(expr.exp, PREC, strict=False)
         if self.printmethod == '_sympyrepr' and expr.exp.is_Rational and expr.exp.q != 1:
@@ -524,6 +526,8 @@ class StrPrinter(Printer):
         return str(expr)
 
     def _print_Integer(self, expr):
+        if self._settings.get("sympy_integers", False):
+            return "S(%s)" % (expr)
         return str(expr.p)
 
     def _print_Integers(self, expr):
@@ -548,6 +552,8 @@ class StrPrinter(Printer):
         if expr.q == 1:
             return str(expr.p)
         else:
+            if self._settings.get("sympy_integers", False):
+                return "S(%s)/%s" % (expr.p, expr.q)
             return "%s/%s" % (expr.p, expr.q)
 
     def _print_PythonRational(self, expr):
@@ -717,6 +723,8 @@ class StrPrinter(Printer):
         return expr.name + '_'
 
     def _print_Zero(self, expr):
+        if self._settings.get("sympy_integers", False):
+            return "S(0)"
         return "0"
 
     def _print_DMP(self, p):
